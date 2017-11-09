@@ -4,10 +4,10 @@ class EventManager {
 
   static on(id, call) {
 
-    if(!this.listeners) {
+    if (!this.listeners) {
       this.listeners = {};
     }
-    if(!this.listeners[id]) {
+    if (!this.listeners[id]) {
       this.listeners[id] = [];
     }
 
@@ -16,11 +16,11 @@ class EventManager {
 
   static trigger(id, event) {
 
-    if(!this.queue) {
+    if (!this.queue) {
       this.queue = [];
     }
 
-    if(!this.listeners || !this.listeners[id]) {
+    if (!this.listeners || !this.listeners[id]) {
       return;
     }
 
