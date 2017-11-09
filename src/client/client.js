@@ -15,13 +15,17 @@ module.exports = class Client {
   connect() {
 
     this.connection = new WebSocket('ws://localhost:8080');
+    EventManager.trigger('joining');
 
     this.connection.onopen = () => {
       this.isConnected = true;
+      EventManager.trigger('connected');
     };
 
     this.connection.onerror = (error) => {
       console.error(error);
+      this.isConnected = false;
+      EventManager.trigger('couldNotConnect');
     };
 
     this.connection.onmessage = (message) => {
@@ -46,19 +50,21 @@ module.exports = class Client {
       this.id = data.id;
     }
 
-    if (data.action === 'roomIndex') {
+    if (this.id) {
+      if (data.action === 'roomIndex') {
 
-      EventManager.trigger('receivedRoomIndex', {
-        count: data.count,
-        rooms: data.rooms
-      });
-    }
+        EventManager.trigger('receivedRoomIndex', {
+          count: data.count,
+          rooms: data.rooms
+        });
+      }
 
-    if (data.action === msg.SERVER_MESSAGE) {
+      if (data.action === msg.SERVER_MESSAGE) {
 
-      EventManager.trigger('receivedServerMessage', {
-        message: data.message
-      });
+        EventManager.trigger('receivedServerMessage', {
+          message: data.message
+        });
+      }
     }
   }
 }
