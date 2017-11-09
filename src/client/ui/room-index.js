@@ -1,5 +1,6 @@
 'use strict';
 
+const msg = require('../../shared/socket-messages');
 const EventManager = require('../../shared/event-manager');
 
 module.exports = class RoomIndex {
@@ -13,7 +14,7 @@ module.exports = class RoomIndex {
     this.roomIndex.appendChild(this.roomIndexTitle);
     this.roomIndex.appendChild(this.roomList);
 
-    EventManager.on('receivedRoomIndex', e => {
+    EventManager.on(msg.SV_ROOM_LISTING, e => {
       this.refresh(e);
     });
 
@@ -22,7 +23,7 @@ module.exports = class RoomIndex {
 
   refresh(data) {
 
-    this.roomIndexTitle.textContent = 'Rooms (' + data.count + ')';
+    this.roomIndexTitle.textContent = 'Clients (' + data.clientCount + '), Rooms (' + data.count + ')';
     this.roomList.innerHTML = '';
 
     data.rooms.forEach( room => {

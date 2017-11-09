@@ -1,39 +1,54 @@
 const EventManager = require('./shared/event-manager');
 const msg = require('./shared/socket-messages');
 
-const Client = require('./client/client');
+const Client = require('./shared/client');
 const RoomIndex = require('./client/ui/room-index');
+const GlobalSay = require('./client/ui/global-say');
 
-let client = new Client();
-client.connect();
-
+// ui
 let clientStatus = document.createElement('span');
 document.body.appendChild(clientStatus);
 
-let roomIndex = new RoomIndex();
-document.body.appendChild(roomIndex.build());
+// Websocket
+let ws = new WebSocket('ws://localhost:8080');
+clientStatus.textContent = 'Joining...';
 
-EventManager.on('joining', e => {
-	clientStatus.textContent = 'Joining...';
-});
+ws.onopen = () => {
+  clientStatus.textContent = 'Connected';
+  connected(ws);
+};
 
-EventManager.on('connected', e => {
-	clientStatus.textContent = 'Connected';
-});
+ws.onerror = (error) => {
+  clientStatus.textContent = 'Connection failed';
+};
 
-EventManager.on('couldNotConnect', e => {
-	clientStatus.textContent = 'Connection failed';
-});
+function connected() {
 
-EventManager.on('requestJoinRoom', e => {
+  let client = new Client(ws);
 
-  client.send({
-    action: msg.ROOM_REQUEST_JOIN,
-    roomIndex: e.roomIndex,
-    playerName: e.playerName
+  ws.onmessage = (message) => {
+    client.received(message);
+  };
+
+  let roomIndex = new RoomIndex();
+  let global = new GlobalSay();
+  document.body.appendChild(roomIndex.build());
+
+  EventManager.on('requestJoinRoom', e => {
+
+    client.send({
+      action: msg.CL_JOIN_ROOM,
+      roomIndex: e.roomIndex,
+      playerName: e.playerName
+    });
   });
-});
 
-EventManager.on('receivedServerMessage', e => {
-  alert(e.message);
-});
+  EventManager.on('sendMessage', e => {
+    client.send({
+      action: msg.CL_SAY,
+      message: e.message
+    });
+  });
+
+  document.body.appendChild(global.build());
+}

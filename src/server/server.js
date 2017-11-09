@@ -3,6 +3,7 @@
 const WebSocket = require('ws');
 const msg = require('../shared/socket-messages');
 const Room = require('./room');
+const Client = require('./../shared/client');
 
 module.exports = class Server {
 
@@ -11,6 +12,7 @@ module.exports = class Server {
     this.currentRoomId = 0;
     this.rooms = [];
     this.clients = {};
+    this.clientCount = 0;
     this.wss = new WebSocket.Server({ port: port });
     Server.registerEvents();
     Server.tick();
@@ -54,10 +56,13 @@ module.exports = class Server {
 
     this.wss.on('connection', (ws) => {
 
-      let id = this.connectClient();
+      this.currentClientId++;
+      let client = new Client(ws);
+      client.setId(this.currentClientId);
+      this.connectClient(client);
 
       ws.on('close', (message) => {
-        this.disconnectClient(id);
+        this.disconnectClient(client);
       });
 
       ws.on('message', (message) => {
@@ -67,37 +72,51 @@ module.exports = class Server {
   }
 
   static send(clientId, data) {
-    this.clients[clientId].send(JSON.stringify(data));
+    this.clients[clientId].send(data);
   }
 
   static broadcast(data) {
-    data = JSON.stringify(data);
     for (let id in this.clients) {
       this.clients[id].send(data);
     }
   }
 
-  static disconnectClient(id) {
-    console.log(id);
+  static disconnectClient(client) {
+    if (this.clients[client.getId()]) {
+      this.clients[client.getId()].disconnect();
+      delete this.clients[client.getId()];
+      this.clientCount--;
+      this.broadcast({
+        action: msg.SV_SAY,
+        message: 'Client (' + client.getId() + ') has disconnected'
+      });
+    }
   }
 
-  static connectClient(ws) {
-    this.currentClientId++;
-    this.clients[this.currentClientId] = ws;
-
-    this.send(this.currentClientId, {
-        action: 'handshake',
-        id: this.currentClientId
+  static connectClient(client) {
+    this.clients[client.getId()] = client;
+    client.connect();
+    this.send(client.getId(), {
+      action: msg.SV_HANDSHAKE,
+      id: client.getId()
     });
-
-    return this.currentClientId;
+    this.clientCount++;
+    this.broadcast({
+      action: msg.SV_SAY,
+      message: 'Client (' + client.getId() + ') has connected'
+    });
   }
 
   static received(message) {
 
     let data = JSON.parse(message);
 
-    if (data.action === msg.ROOM_REQUEST_JOIN) {
+    if (data.action === msg.CL_SAY) {
+      this.broadcast(data);
+      return;
+    }
+
+    if (data.action === msg.CL_JOIN_ROOM) {
 
       let room = null;
       if ('roomIndex' in data) {
@@ -109,9 +128,10 @@ module.exports = class Server {
       room.createPlayer(data.playerName);
 
       Server.send(data.clientId, {
-        action: msg.SERVER_MESSAGE,
-        message: 'You have joined room ' + room.id
+        action: msg.SV_CLIENT_JOINED_ROOM
       });
+
+      return;
     }
   }
 
@@ -122,8 +142,9 @@ module.exports = class Server {
     if (this.rooms.length) {
 
       this.broadcast({
-        action: 'roomIndex',
+        action: msg.SV_ROOM_LISTING,
         count: this.getRoomCount(),
+        clientCount: this.clientCount,
         rooms: this.rooms.map((r, i) => {
           let data = r.getPackageData();
           data.index = i;
